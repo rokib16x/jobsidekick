@@ -1,0 +1,26 @@
+# Everything the agent may use to answer application forms. It will not invent anything outside this + your CV.
+basics:
+  full_name: Your Name
+  email: you@example.com
+  phone: "+1 555 000 0000"
+  linkedin: https://linkedin.com/in/you
+  github: https://github.com/you
+  website: ""
+location:
+  city: ""
+  country: ""
+  timezone: ""
+  work_authorization: "Authorized to work in ... / Need sponsorship: no"
+  open_to_relocate: false
+work:
+  years_experience: 5
+  current_title: ""
+  notice_period: "2 weeks"
+  desired_salary_usd: ""
+  earliest_start: ""
+answers:      # canned answers for common screening questions
+  how_did_you_hear: "Hacker News / company careers page"
+  why_remote: ""
+  gender: "Decline to self-identify"          # EEO questions: your choice
+  veteran: "Decline to self-identify"
+  disability: "Decline to self-identify"

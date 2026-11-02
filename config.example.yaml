@@ -1,0 +1,37 @@
+# Copy to config.yaml and edit.
+cv_path: profile/cv.pdf
+profile_path: profile/profile.yaml
+
+search:
+  titles: ["software engineer", "backend engineer", "full stack"]   # a job must mention one of these/keywords
+  keywords: ["python", "typescript"]
+  exclude_title_words: ["intern", "junior", "manager", "director"]
+  remote_only: true
+  min_score: 4          # AI fit score 1-5; only jobs >= this get a cover letter and an application
+
+sources:
+  hn: true              # latest "Ask HN: Who is hiring?" thread
+  remoteok: true
+  remotive: true
+  wwr: true             # We Work Remotely (RSS)
+  himalayas: true
+  jobicy: true
+  arbeitnow: true
+  adzuna: false         # free key; set ADZUNA_APP_ID / ADZUNA_APP_KEY
+  adzuna_country: us
+  jsearch: false        # RAPIDAPI_KEY; Google-for-Jobs aggregate = LinkedIn/Indeed/Glassdoor listings, applied on the employer site
+  serpapi: false        # SERPAPI_KEY
+  greenhouse: []        # company board slugs, e.g. ["stripe", "gitlab"]
+  lever: []             # e.g. ["netflix"]
+  ashby: []             # e.g. ["linear"]
+
+apply:
+  mode: review          # review = AI fills the form, you confirm each Submit.  auto = AI submits by itself
+  max_per_run: 10
+  headless: false       # keep false so you can watch it
+  skip_domains: ["linkedin.com"]   # LinkedIn bans automation; these are listed for you to apply to by hand
+
+models:
+  match: claude-haiku-5-5
+  write: claude-sonnet-5-5
+  browser: claude-sonnet-5-5

@@ -6,7 +6,7 @@ from jobsidekick.db import Job
 
 
 def J(**kw):
-    base = dict(id="x:1", source="hn", title="Backend Engineer", company="Acme", location="Remote", url="u", apply_url="u", description="python remote role")
+    base = dict(id="x:1", source="wwr", title="Backend Engineer", company="Acme", location="Remote", url="u", apply_url="u", description="python remote role")
     return Job(**{**base, **kw})
 
 
@@ -24,7 +24,7 @@ def test_prefilter_drops_excluded_and_offtopic():
 
 
 def test_prefilter_drops_onsite_when_remote_only():
-    assert sources.prefilter([J(location="Berlin onsite", description="engineer in office")], cfg()) == []
+    assert sources.prefilter([J(source="greenhouse", location="Berlin onsite", description="engineer in office")], cfg()) == []
 
 
 def test_db_dedupes_across_sources(tmp_path, monkeypatch):

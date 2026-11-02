@@ -1217,6 +1217,8 @@ source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "browser-use" },
+    { name = "google-api-python-client" },
+    { name = "google-auth-oauthlib" },
     { name = "httpx" },
     { name = "playwright" },
     { name = "pydantic" },
@@ -1237,6 +1239,8 @@ dev = [
 requires-dist = [
     { name = "anthropic", specifier = ">=0.125.0" },
     { name = "browser-use", specifier = ">=0.11.13" },
+    { name = "google-api-python-client", specifier = ">=2.201.0" },
+    { name = "google-auth-oauthlib", specifier = ">=1.5.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "playwright", specifier = ">=1.64.1" },
     { name = "pydantic", specifier = ">=2.14.2" },

@@ -10,6 +10,7 @@ import httpx
 
 from .config import Config
 from .db import Job
+from .methods import best_url
 
 UA = {"User-Agent": "jobsidekick/0.1 (personal job search)"}
 URL_RE = re.compile(r"https?://[^\s<>\"')]+")
@@ -50,7 +51,7 @@ def hn(client: httpx.Client) -> list[Job]:
                 title=" | ".join(parts[1:3]) if len(parts) > 2 else head[:120],
                 company=parts[0][:80], location=head[:200],
                 url=f"https://news.ycombinator.com/item?id={h['objectID']}",
-                apply_url=urls[0] if urls else "", description=body,
+                apply_url=best_url(urls), description=body,
             ))
         page += 1
         if page >= data["nbPages"]:
@@ -247,8 +248,10 @@ def prefilter(jobs: list[Job], cfg: Config) -> list[Job]:
             continue
         if s.remote_only and "remote" not in f"{j.location} {hay[:600]}".lower() and j.source not in REMOTE_ONLY_SOURCES:
             continue
+        # the role itself must match: title only (HN posts have no clean title, so use the opening of the post)
+        head = (j.description[:300] if j.source == "hn" else j.title).lower()
         terms = [t.lower() for t in s.titles + s.keywords]
-        if terms and not any(t in hay for t in terms):
+        if terms and not any(t in head for t in terms):
             continue
         out.append(j)
     return out

@@ -49,6 +49,14 @@ class Apply(BaseModel):
     skip_domains: list[str] = Field(default_factory=lambda: ["linkedin.com"])
 
 
+class Email(BaseModel):
+    via: str = "auto"  # auto = Gmail drafts if credentials.json exists, else a mailto link; or gmail | mailto
+
+
+class Resume(BaseModel):
+    enabled: bool = True  # make a tailored one-job PDF resume (facts from your CV only)
+
+
 class Config(BaseModel):
     cv_path: str = "profile/cv.pdf"
     profile_path: str = "profile/profile.yaml"
@@ -56,6 +64,8 @@ class Config(BaseModel):
     search: Search = Search()
     sources: Sources = Sources()
     apply: Apply = Apply()
+    email: Email = Email()
+    resume: Resume = Resume()
 
     @property
     def cv_file(self) -> Path:

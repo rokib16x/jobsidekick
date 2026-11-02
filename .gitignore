@@ -5,3 +5,4 @@ data/
 profile/*
 !profile/profile.example.yaml
 __pycache__/
+credentials.json

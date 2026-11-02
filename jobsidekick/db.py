@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
 
+from . import methods
 from .config import DB_PATH
 
-# status flow: new -> (skipped | matched) -> ready -> (applied | manual | failed)
+# status flow: new -> (skipped | matched) -> ready -> (applied | drafted | manual | failed)
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY, source TEXT, title TEXT, company TEXT, location TEXT,
   url TEXT, apply_url TEXT, description TEXT, salary TEXT,
-  score INTEGER, reasons TEXT, cover_letter TEXT,
+  score INTEGER, reasons TEXT, cover_letter TEXT, method TEXT, email TEXT, resume_path TEXT,
   status TEXT DEFAULT 'new', notes TEXT, created REAL, updated REAL
 )
 """
@@ -36,21 +38,47 @@ def conn() -> sqlite3.Connection:
     c = sqlite3.connect(DB_PATH)
     c.row_factory = sqlite3.Row
     c.execute(SCHEMA)
+    have = {r[1] for r in c.execute("PRAGMA table_info(jobs)")}
+    for col in ("method", "email", "resume_path"):  # migrate databases made by older versions
+        if col not in have:
+            c.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
+    for r in c.execute("SELECT id, apply_url, description FROM jobs WHERE method IS NULL").fetchall():
+        m, e = methods.classify(r["apply_url"], r["description"])
+        c.execute("UPDATE jobs SET method=?, email=? WHERE id=?", (m, e, r["id"]))
+    c.commit()
     return c
+
+
+def fix_text(s: str) -> str:
+    """Repair UTF-8 that a feed double-encoded (e.g. 'Sothebyâ\x80\x99s')."""
+    if s and re.search("[âÃ]", s):
+        for enc in ("latin-1", "cp1252"):
+            try:
+                return s.encode(enc).decode("utf-8")
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                pass
+    return s
+
+
+def norm(s: str) -> str:
+    """Normalised key so 'Software Engineer, AI Coding Tasks' == 'Software Engineer AI Coding Tasks'."""
+    return re.sub(r"[^a-z0-9]+", " ", fix_text(s).lower()).strip()
 
 
 def add_new(jobs: list[Job]) -> int:
     c, n = conn(), 0
-    seen = {(r[0].lower().strip(), r[1].lower().strip()) for r in c.execute("SELECT company, title FROM jobs")}
+    seen = {(norm(r[0]), norm(r[1])) for r in c.execute("SELECT company, title FROM jobs")}
     for j in jobs:
-        key = (j.company.lower().strip(), j.title.lower().strip())
+        j.title, j.company, j.description = fix_text(j.title), fix_text(j.company), fix_text(j.description)
+        key = (norm(j.company), norm(j.title))
         if j.company and key in seen:  # same posting syndicated on several boards
             continue
         seen.add(key)
         cur = c.execute(
-            "INSERT OR IGNORE INTO jobs (id,source,title,company,location,url,apply_url,description,salary,created,updated)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            (j.id, j.source, j.title, j.company, j.location, j.url, j.apply_url, j.description, j.salary, time.time(), time.time()),
+            "INSERT OR IGNORE INTO jobs (id,source,title,company,location,url,apply_url,description,salary,method,email,created,updated)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (j.id, j.source, j.title, j.company, j.location, j.url, j.apply_url, j.description, j.salary,
+             *methods.classify(j.apply_url, j.description), time.time(), time.time()),
         )
         n += cur.rowcount
     c.commit()

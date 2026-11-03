@@ -2,3 +2,14 @@
 greenhouse: [gitlab, cloudflare, datadog, figma, mongodb, twilio, elastic, grafanalabs, mozilla, canonical, brex, gusto, asana, vercel, stripe, coinbase, reddit, okta, fastly, dropbox, discord]
 lever: [crypto]
 ashby: [linear, ramp, notion, openai, sentry, clickhouse, temporal, posthog, supabase, resend, cursor, replit, render, zapier, cohere]
+workable: [huggingface]
+smartrecruiters: [Wise, Canva, Grab, BoschGroup, NielsenIQ, Ubisoft2]
+recruitee: [bunq]
+workday:
+  - nvidia.wd5.myworkdayjobs.com|nvidia|NVIDIAExternalCareerSite
+  - adobe.wd5.myworkdayjobs.com|adobe|external_experienced
+  - salesforce.wd12.myworkdayjobs.com|salesforce|External_Career_Site
+  - workday.wd5.myworkdayjobs.com|workday|Workday
+  - intel.wd1.myworkdayjobs.com|intel|External
+  - mastercard.wd1.myworkdayjobs.com|mastercard|CorporateCareers
+  - paypal.wd1.myworkdayjobs.com|paypal|jobs

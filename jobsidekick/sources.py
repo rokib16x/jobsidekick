@@ -107,7 +107,7 @@ def ashby(client: httpx.Client, name: str) -> list[Job]:
     ) for d in r.json().get("jobs", [])] if r.status_code == 200 else []
 
 
-REMOTE_ONLY_SOURCES = {"jobspy", "remoteok", "remotive", "wwr", "himalayas", "jobicy", "arbeitnow", "jsearch", "serpapi"}
+REMOTE_ONLY_SOURCES = {"workingnomads", "themuse", "nodesk", "linkedin-guest", "jobspy", "remoteok", "remotive", "wwr", "himalayas", "jobicy", "arbeitnow", "jsearch", "serpapi"}
 
 
 def wwr(client: httpx.Client) -> list[Job]:
@@ -246,11 +246,27 @@ def fetch_all(cfg: Config, log=print) -> list[Job]:
         if s.jsearch: tasks.append(("jsearch", lambda: jsearch(c, cfg)))
         if s.serpapi: tasks.append(("serpapi", lambda: serpapi(c, cfg)))
         if s.jobspy: tasks.append(("jobspy", lambda: jobspy(cfg)))
+        from . import boards as B
+        from . import feeds
         from .companies import watchlist
 
+        if s.workingnomads: tasks.append(("workingnomads", lambda: feeds.workingnomads(c)))
+        if s.themuse: tasks.append(("themuse", lambda: feeds.themuse(c)))
+        if s.nodesk: tasks.append(("nodesk", lambda: feeds.nodesk(c)))
+        if s.linkedin_guest: tasks.append(("linkedin-guest", lambda: feeds.linkedin_guest(cfg)))
+        terms = [t.lower() for t in cfg.search.titles + cfg.search.keywords]
+        want = lambda title: not any(w.lower() in title.lower() for w in cfg.search.exclude_title_words) and (not terms or any(t in title.lower() for t in terms))
+        fns = {"greenhouse": greenhouse, "lever": lever, "ashby": ashby}
         wl = watchlist(s.starter_companies)  # starter list + `sidekick add-company` + config.yaml entries
-        for key, fn, extra in (("greenhouse", greenhouse, s.greenhouse), ("lever", lever, s.lever), ("ashby", ashby, s.ashby)):
-            tasks += [(f"{key}:{t}", lambda t=t, fn=fn: fn(c, t)) for t in dict.fromkeys(wl[key] + extra)]
+        for key in wl:
+            extra = getattr(s, key, None) if key in fns else s.boards.get(key, [])
+            for t in dict.fromkeys(wl[key] + list(extra or [])):
+                if key in fns:
+                    tasks.append((f"{key}:{t}", lambda t=t, key=key: fns[key](c, t)))
+                elif key == "workday":
+                    tasks.append((f"workday:{t.split('|')[1] if '|' in t else t}", lambda t=t: B.workday(c, t, want, cfg.search.titles)))
+                else:
+                    tasks.append((f"{key}:{t}", lambda t=t, key=key: B.FETCHERS[key](c, t, want)))
         for name, fn in tasks:
             try:
                 got = fn()

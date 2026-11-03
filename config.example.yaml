@@ -22,6 +22,12 @@ sources:
   arbeitnow: true
   adzuna: false         # free key; set ADZUNA_APP_ID / ADZUNA_APP_KEY
   adzuna_country: us
+  workingnomads: true
+  themuse: true
+  nodesk: true
+  linkedin_guest: false  # OPT-IN: LinkedIn's public logged-out search (no login; against LinkedIn's terms; rate-limited). You apply by hand.
+  linkedin_location: Worldwide
+  boards: {}            # extra company boards by system, e.g. {workable: [huggingface], recruitee: [bunq]}
   jobspy: false         # OPT-IN scraping (Indeed/LinkedIn/Glassdoor/ZipRecruiter/BDJobs); against their terms, your risk. uv sync --extra scrape
   jobspy_sites: [indeed]
   jobspy_country: usa

@@ -89,6 +89,13 @@ def match(limit: int = 100) -> None:
     profile, cv = C.load_profile(cfg), C.cv_text(cfg)
     for row in db.by_status("new", limit):
         job = dict(row)
+        if job["source"] == "linkedin-guest" and len(job["description"]) < 400:
+            from . import feeds
+
+            full = feeds.linkedin_detail(job["url"])
+            if full:
+                job["description"] = full
+                db.update(job["id"], description=full)
         try:
             r = matcher.score(job, cfg, cv, profile)
         except Exception as e:
@@ -341,6 +348,36 @@ def stories() -> None:
 
     cfg = C.load()
     console.print(f"wrote {coach.stories(cfg, C.cv_text(cfg))}  (add your real numbers, then `sidekick prep <job id>` uses it)")
+
+
+@app.command()
+def manual(open_links: bool = typer.Option(True, "--open/--list", help="Open each posting in your browser, one at a time")) -> None:
+    """Jobs you apply to by hand (sites that need a login, LinkedIn, no apply link): opens each, copies your cover letter to the clipboard."""
+    import platform
+    import subprocess
+    import webbrowser
+
+    rows = [dict(r) for st in ("ready", "manual") for r in db.by_status(st) if r["method"] == "login" or st == "manual"]
+    rows = [r for r in rows if r["method"] != "email" and (r["apply_url"] or r["url"])]
+    if not rows:
+        return console.print("Nothing waiting for a manual application.")
+    for i, r in enumerate(rows, 1):
+        console.print(f"[bold]{i}/{len(rows)}[/bold] {r['title']} @ {r['company']} (score {r['score']}, {r['method']})\n  {r['apply_url'] or r['url']}")
+        if not open_links:
+            continue
+        if r.get("cover_letter"):
+            clip = ["pbcopy"] if platform.system() == "Darwin" else ["xclip", "-selection", "clipboard"]
+            try:
+                subprocess.run(clip, input=r["cover_letter"].encode(), check=True)
+                console.print("  cover letter copied to your clipboard")
+            except (OSError, subprocess.CalledProcessError):
+                pass
+        webbrowser.open(r["apply_url"] or r["url"])
+        ans = typer.prompt("  applied? [y = mark applied / s = skip job / Enter = later / q = quit]", default="").strip().lower()
+        if ans == "q":
+            break
+        if ans in ("y", "s"):
+            db.update(r["id"], status="applied" if ans == "y" else "skipped")
 
 
 @app.command("mcp")

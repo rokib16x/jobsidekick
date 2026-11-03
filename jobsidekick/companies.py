@@ -12,11 +12,16 @@ from .config import ROOT
 
 WATCHLIST = ROOT / "data" / "companies.yaml"
 STARTER = Path(__file__).parent / "starter_companies.yaml"
-ATS = ("greenhouse", "lever", "ashby")
+ATS = ("greenhouse", "lever", "ashby", "workable", "smartrecruiters", "recruitee", "personio", "breezy", "workday")
 URL_PATTERNS = [
     ("greenhouse", r"(?:job-)?boards(?:-api)?\.greenhouse\.io/(?:v1/boards/)?([\w-]+)"),
     ("lever", r"jobs\.lever\.co/([\w-]+)"),
     ("ashby", r"jobs\.ashbyhq\.com/([\w%.-]+)"),
+    ("workable", r"apply\.workable\.com/([\w-]+)"),
+    ("smartrecruiters", r"(?:jobs|careers)\.smartrecruiters\.com/([\w-]+)"),
+    ("recruitee", r"([\w-]+)\.recruitee\.com"),
+    ("personio", r"([\w-]+)\.jobs\.personio\.(?:de|com)"),
+    ("breezy", r"([\w-]+)\.breezy\.hr"),
 ]
 
 
@@ -37,16 +42,23 @@ def watchlist(include_starter: bool = True) -> dict[str, list[str]]:
 def detect(target: str, client: httpx.Client | None = None) -> list[tuple[str, str, int]]:
     """Return [(ats, slug, open_jobs)] for a careers URL or a company name. Empty if nothing public was found."""
     c = client or httpx.Client(headers=sources.UA, timeout=20, follow_redirects=True)
-    fetch = {"greenhouse": sources.greenhouse, "lever": sources.lever, "ashby": sources.ashby}
+    from . import boards
+
+    no_details = lambda title: False  # just count postings, don't fetch every description
+    fetch = {"greenhouse": sources.greenhouse, "lever": sources.lever, "ashby": sources.ashby,
+             **{k: (lambda c, s, f=f: f(c, s, no_details)) for k, f in boards.FETCHERS.items()}}
     cands: list[tuple[str, str]] = []
+    wd = boards.workday_spec(target)
+    if wd:
+        cands.append(("workday", wd))
     for ats, pat in URL_PATTERNS:
         m = re.search(pat, target)
         if m:
             cands.append((ats, m.group(1)))
-    if not cands:  # a plain name: try the likely slugs on every ATS
+    if not cands:  # a plain name: try the likely slugs on every ATS (Workday needs a URL)
         base = re.sub(r"[^a-z0-9]+", "", target.lower())
         hyph = re.sub(r"[^a-z0-9]+", "-", target.lower()).strip("-")
-        cands = [(a, s) for s in dict.fromkeys([base, hyph]) for a in ATS]
+        cands = [(a, s) for s in dict.fromkeys([base, hyph]) for a in ATS if a != "workday"]
     found = []
     for ats, slug in cands:
         try:

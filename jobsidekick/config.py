@@ -46,6 +46,12 @@ class Sources(BaseModel):
     arbeitnow: bool = True
     adzuna: bool = False      # needs ADZUNA_APP_ID / ADZUNA_APP_KEY
     adzuna_country: str = "us"
+    workingnomads: bool = True
+    themuse: bool = True
+    nodesk: bool = True
+    linkedin_guest: bool = False  # OPT-IN: LinkedIn's public logged-out search. No login, but against LinkedIn's terms and rate-limited. You apply by hand.
+    linkedin_location: str = "Worldwide"
+    boards: dict[str, list[str]] = Field(default_factory=dict)  # extra company boards by ATS: workable, smartrecruiters, recruitee, personio, breezy, workday
     jsearch: bool = False     # needs RAPIDAPI_KEY; covers LinkedIn/Indeed/Glassdoor listings
     serpapi: bool = False     # needs SERPAPI_KEY; Google Jobs
     jobspy: bool = False      # OPT-IN scraping of Indeed/LinkedIn/Glassdoor/ZipRecruiter/BDJobs via python-jobspy; against those sites' terms, your risk

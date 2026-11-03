@@ -4,7 +4,7 @@
 
 **Find remote jobs, score them against your CV, tailor your resume, draft the emails, fill the forms, and track the replies. You approve every submit and every send.**
 
-- **Finds jobs** from 10+ free sources (Hacker News "Who is hiring?", RemoteOK, Remotive, We Work Remotely, Himalayas, Jobicy, Arbeitnow), ~40 verified company boards (Greenhouse / Lever / Ashby) and any link you paste. Optional: Adzuna, JSearch, SerpAPI, LinkedIn job-alert emails, and opt-in scraping via JobSpy.
+- **Finds jobs everywhere that is publicly reachable**: 13 free job boards, ~65 verified company boards across 9 hiring systems (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Personio, Breezy, Workday) and any link you paste. Optional: Adzuna, JSearch, SerpAPI, LinkedIn alert emails, and opt-in LinkedIn/Indeed/Glassdoor/BDJobs search.
 - **Scores honestly**: Claude (or OpenAI, Gemini, or a free local Ollama model) rates each job 1-5 against your CV, lists the skills you lack, enforces an experience limit, and checks the posting is still open.
 - **Writes only true things**: cover letters, application emails and a tailored one-job PDF resume use facts from your CV only. Any number not in your CV is flagged; stock AI phrases are filtered out.
 - **Applies safely**: a browser agent fills web forms (Greenhouse questions are read from the API and pre-answered), emails become Gmail drafts with the resume attached, and logins / CAPTCHAs / verification codes are handed to you.
@@ -76,6 +76,25 @@ Google has no drafts-only permission: the `gmail.compose` scope also allows send
 ## Use it from Claude
 - **MCP**: add to Claude Desktop's config: `{"mcpServers": {"jobsidekick": {"command": "uv", "args": ["run", "--project", "/path/to/jobsidekick", "sidekick", "mcp"]}}}`
 - **Claude Code plugin**: this repo is also a plugin (`.claude-plugin/`, `skills/`, `.mcp.json`); it keeps your data in `~/.jobsidekick` (`JOBSIDEKICK_HOME`).
+
+## What is covered, and what isn't
+| Where | How | Status |
+|---|---|---|
+| Hacker News "Who is hiring?", RemoteOK, Remotive, We Work Remotely, Himalayas, Jobicy, Arbeitnow, Working Nomads, The Muse, NoDesk | public APIs / RSS, no key | on by default |
+| Company career pages on Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Personio, Breezy, Workday | official public job-board endpoints | ~65 starter companies; add any with `sidekick add-company <careers url>` |
+| Google-for-Jobs aggregate (LinkedIn, Indeed, Glassdoor, ZipRecruiter listings) | JSearch / SerpAPI (free tiers), Adzuna | needs a key |
+| LinkedIn | alert emails via `sync` (safe), or opt-in public search `sources.linkedin_guest` | see below |
+| Indeed, Glassdoor, ZipRecruiter, BDJobs | opt-in JobSpy | against their terms, your risk |
+| Jobspresso, Remote.co, CryptoJobsList | not covered: they sit behind Cloudflare bot checks and we don't bypass those | use a link with `sidekick add` |
+
+Anything that needs a login to apply is still *found and scored*; it is tagged `login` and waits in `sidekick manual`, which opens each posting, copies your cover letter to the clipboard, and lets you mark it applied.
+
+### LinkedIn: better options than a LinkedIn bot
+Bots like Easy-Apply auto-appliers log in as you, which is what gets accounts restricted. In order of safety:
+1. **LinkedIn job-alert emails** (`sidekick sync`): set up alerts on LinkedIn, and the postings arrive in your Gmail and are imported and scored. Nothing touches LinkedIn.
+2. **Same job on the employer's site**: Google-for-Jobs sources (JSearch / SerpAPI) usually carry the employer's own apply link, so you apply there with no LinkedIn login.
+3. **`sources.linkedin_guest: true`**: reads LinkedIn's public logged-out search pages. No login or account involved, but automated access is against LinkedIn's terms and it rate-limits, so it is slow, polite and opt-in. Results are tagged `login`: you apply by hand with `sidekick manual`.
+4. **Easy Apply bots**: not included, on purpose.
 
 ## Sources and keys
 | Source | Key | Notes |

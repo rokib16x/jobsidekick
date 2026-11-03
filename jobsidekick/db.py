@@ -40,7 +40,7 @@ def conn() -> sqlite3.Connection:
     c.execute(SCHEMA)
     c.execute("CREATE TABLE IF NOT EXISTS answers (key TEXT PRIMARY KEY, question TEXT, answer TEXT, source TEXT, created REAL)")
     have = {r[1] for r in c.execute("PRAGMA table_info(jobs)")}
-    for col in ("method", "email", "resume_path", "gaps", "req_years", "liveness"):  # migrate databases from older versions
+    for col in ("method", "email", "resume_path", "gaps", "req_years", "liveness", "picked"):  # migrate databases from older versions
         if col not in have:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
     for r in c.execute("SELECT id, apply_url, description FROM jobs WHERE method IS NULL").fetchall():
@@ -98,6 +98,12 @@ def update(job_id: str, **fields) -> None:
     cols = ", ".join(f"{k}=?" for k in fields)
     c.execute(f"UPDATE jobs SET {cols} WHERE id=?", (*fields.values(), job_id))
     c.commit()
+
+
+def only_picked(rows: list) -> list:
+    """If you ticked jobs in the dashboard, work on those only; if you ticked none, work on everything in the queue."""
+    any_picked = conn().execute("SELECT 1 FROM jobs WHERE picked=1 AND status IN ('ready','manual','drafted') LIMIT 1").fetchone()
+    return [r for r in rows if r["picked"]] if any_picked else rows
 
 
 def counts() -> dict[str, int]:

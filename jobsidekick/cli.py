@@ -73,9 +73,11 @@ def add_company(target: str = typer.Argument(..., help="Careers page URL or comp
 
 
 @app.command()
-def scan() -> None:
-    """Fetch postings from all sources, prefilter by your keywords, store new ones."""
+def scan(query: str = None) -> None:
+    """Fetch postings from all sources, prefilter by your keywords, store new ones. --query "react developer" searches just for that."""
     cfg = C.load()
+    if query:  # one-off search from the dashboard / command line
+        cfg.search.titles, cfg.search.keywords = [q.strip() for q in query.split(",") if q.strip()], []
     jobs = sources.fetch_all(cfg, console.print)
     kept = sources.prefilter(jobs, cfg)
     n = db.add_new(kept)
@@ -133,7 +135,7 @@ def resume(job_id: str = typer.Option(None, help="Only this job id"), limit: int
     from . import resume as R
 
     profile, cv = C.load_profile(cfg), C.cv_text(cfg)
-    for row in db.by_status("ready", limit):
+    for row in db.only_picked(db.by_status("ready", limit)):
         job = dict(row)
         if (job_id and job["id"] != job_id) or (job["resume_path"] and Path(job["resume_path"]).exists()):
             continue
@@ -161,7 +163,7 @@ def email(via: str = typer.Option(None, help="gmail | mailto (default from confi
     if via == "gmail" and not emailer.gmail_ready():
         raise SystemExit("credentials.json not found. See 'Gmail drafts' in the README, or use --via mailto.")
     links = []
-    for row in db.by_status("ready"):
+    for row in db.only_picked(db.by_status("ready")):
         job = dict(row)
         if job["method"] != "email" or not job["email"]:
             continue
@@ -357,7 +359,7 @@ def manual(open_links: bool = typer.Option(True, "--open/--list", help="Open eac
     import subprocess
     import webbrowser
 
-    rows = [dict(r) for st in ("ready", "manual") for r in db.by_status(st) if r["method"] == "login" or st == "manual"]
+    rows = [dict(r) for r in db.only_picked([r for st in ("ready", "manual") for r in db.by_status(st) if r["method"] == "login" or st == "manual"])]
     rows = [r for r in rows if r["method"] != "email" and (r["apply_url"] or r["url"])]
     if not rows:
         return console.print("Nothing waiting for a manual application.")
@@ -436,7 +438,7 @@ def apply(limit: int = typer.Option(None, help="Max applications this run (defau
 def applier_run(cfg, profile, limit):
     from . import applier
 
-    return applier.apply_all(db.by_status("ready"), cfg, profile, limit)
+    return applier.apply_all(db.only_picked(db.by_status("ready")), cfg, profile, limit)
 
 
 @app.command()

@@ -403,3 +403,103 @@ def test_jobspy_source_maps_rows(monkeypatch):
     monkeypatch.setitem(sys.modules, "jobspy", types.SimpleNamespace(scrape_jobs=lambda **k: DF()))
     (job,) = sources.jobspy(Config(search={"titles": ["python"]}))[:1]
     assert job.source == "jobspy" and job.apply_url == "https://foo.com/apply" and job.salary.startswith("80000")
+
+
+def test_picked_jobs_narrow_the_queue(tmp_path, monkeypatch):
+    import json
+    import threading
+    import urllib.request
+
+    from jobsidekick import dashboard
+
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "t.db")
+    db.add_new([Job(id=f"a:{i}", source="wwr", title=f"Eng {i}", company=f"C{i}", location="", url="u", apply_url="u", description="d") for i in (1, 2)])
+    for i in (1, 2):
+        db.update(f"a:{i}", status="ready")
+    assert len(db.only_picked(db.by_status("ready"))) == 2  # nothing ticked: everything is in the queue
+    srv = dashboard.serve(0, open_browser=False)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{srv.server_port}/api/job/a:2/pick", json.dumps({"picked": True}).encode(), {"X-Sidekick": "1"}, method="POST")
+        urllib.request.urlopen(req)
+        assert [r["id"] for r in db.only_picked(db.by_status("ready"))] == ["a:2"]
+    finally:
+        srv.shutdown()
+
+
+def test_runner_steps_and_single_flight(monkeypatch):
+    import io
+    import time
+
+    from jobsidekick import runner
+
+    assert runner.steps("find", "react") == [["scan", "--query", "react"], ["match", "--limit", "150"]]
+    assert runner.steps("add", url="https://x.com/j") == [["add", "https://x.com/j"]]
+    for bad in (lambda: runner.steps("apply"), lambda: runner.steps("add", url="javascript:alert(1)")):
+        try:
+            bad()
+            raise AssertionError("accepted")
+        except ValueError:
+            pass
+
+    class P:
+        def __init__(self, cmd, **k):
+            self.stdout = io.StringIO("scanned 5\nok\n")
+            time.sleep(0.3)
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(runner.subprocess, "Popen", P)
+    r = runner.Runner()
+    run = r.start("score")
+    try:
+        r.start("draft")
+        raise AssertionError("second run allowed")
+    except RuntimeError:
+        pass
+    for _ in range(40):
+        if run["status"] != "running":
+            break
+        time.sleep(0.1)
+    assert run["status"] == "done" and "scanned 5" in run["log"]
+    assert r.get(run["id"]) is run
+
+
+def test_activity_buckets_and_ui_routes(tmp_path, monkeypatch):
+    import json
+    import threading
+    import time
+    import urllib.error
+    import urllib.request
+
+    from jobsidekick import dashboard
+
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "t.db")
+    db.add_new([Job(id="a:1", source="wwr", title="Eng", company="A", location="", url="u", apply_url="u", description="d")])
+    a = dashboard.activity("week")
+    assert a["n"] == 7 and a["rows"]["Found"][-1] == 1 and sum(a["rows"]["Applied"]) == 0
+    db.update("a:1", status="applied")
+    assert sum(dashboard.activity("day")["rows"]["Applied"]) == 1
+    srv = dashboard.serve(0, open_browser=False)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{srv.server_port}"
+    try:
+        assert b"Satoshi" in urllib.request.urlopen(base + "/").read()
+        assert urllib.request.urlopen(base + "/ui/app.js").status == 200
+        for bad in ("/ui/..", "/ui/secret.txt", "/ui/%2e%2e/x"):
+            try:
+                urllib.request.urlopen(base + bad)
+                raise AssertionError("served " + bad)
+            except urllib.error.HTTPError as e:
+                assert e.code == 404
+        post = lambda body, hdr: urllib.request.urlopen(urllib.request.Request(base + "/api/run", json.dumps(body).encode(), hdr, method="POST"))
+        for body, hdr, code in (({"action": "find"}, {}, 403), ({"action": "find"}, {"X-Sidekick": "1", "Origin": "https://evil.example"}, 403),
+                                ({"action": "apply"}, {"X-Sidekick": "1"}, 400), ({"action": "add", "url": "file:///etc/passwd"}, {"X-Sidekick": "1"}, 400)):
+            try:
+                post(body, hdr)
+                raise AssertionError(f"accepted {body}")
+            except urllib.error.HTTPError as e:
+                assert e.code == code
+    finally:
+        srv.shutdown()

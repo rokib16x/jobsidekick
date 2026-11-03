@@ -25,7 +25,7 @@ uv run sidekick match      # AI scores 1-5, lists gaps, checks experience limit
 uv run sidekick draft      # cover letter per match (skips postings that closed)
 uv run sidekick resume     # tailored PDF resume per job, with an ATS-readability check
 uv run sidekick review     # the queue, and HOW each job takes applications
-uv run sidekick dashboard  # local web dashboard
+uv run sidekick dashboard  # the web app: browse, pick, run steps from a search bar (⌘K)
 ```
 Or everything unattended except applying: `uv run sidekick daily`, and `uv run sidekick schedule install --time 09:00`.
 
@@ -46,9 +46,17 @@ Or everything unattended except applying: `uv run sidekick daily`, and `uv run s
 | `outreach [JOB]` | Draft a LinkedIn note and email to a hiring manager (two-fact rule). You find the person and send |
 | `prep JOB` / `stories` | Interview prep pack; STAR story bank from your CV |
 | `stats` / `gaps` | Funnel by source and method; skills jobs want that your CV lacks |
-| `dashboard` / `export` | Local web UI (127.0.0.1 only); CSV export |
+| `dashboard` / `export` | The web app (127.0.0.1 only): cards, ⌘K search that finds jobs and runs steps, pick jobs, pipeline board, activity timeline, insights; CSV export |
 | `daily` / `schedule install\|remove` | The unattended routine + digest; run it every day |
 | `mcp` | MCP server for Claude Desktop/Code (no tool can submit or send) |
+
+## The web app
+`uv run sidekick dashboard` opens a local app (Satoshi font, loaded from Fontshare; offline it falls back to the system font):
+- **⌘K / Ctrl+K**: type a role to *find jobs* (searches every source, then scores what's new), paste a link to *add a job*, search your tracker, or run a step (score, cover letters, prepare picked jobs, sync Gmail, daily routine).
+- **Pick** jobs with the checkbox on any card. `resume`, `email`, `apply` and `manual` then work on your picked jobs only (no picks = everything in the queue).
+- Cards, list view, pipeline board, "apply by hand" queue, funnel and skill-gap insights, saved answers, and an activity timeline (day / week / month / year).
+- Click a job for its score reasons, gaps, tailored resume, cover letter and the posting.
+- It cannot submit applications or send email: **Apply** shows the terminal commands, where you confirm each Submit. It binds to 127.0.0.1 and rejects cross-site requests.
 
 ## How each job gets applied to
 `scan` tags every job with how it takes applications:

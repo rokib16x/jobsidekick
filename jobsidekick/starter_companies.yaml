@@ -1,0 +1,4 @@
+# Company job boards verified live on 2026-11-03. Add your own with: sidekick add-company <careers url or name>
+greenhouse: [gitlab, cloudflare, datadog, figma, mongodb, twilio, elastic, grafanalabs, mozilla, canonical, brex, gusto, asana, vercel, stripe, coinbase, reddit, okta, fastly, dropbox, discord]
+lever: [crypto]
+ashby: [linear, ramp, notion, openai, sentry, clickhouse, temporal, posthog, supabase, resend, cursor, replit, render, zapier, cohere]

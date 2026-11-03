@@ -1,36 +1,13 @@
-"""Score jobs against the CV + preferences, and draft a cover letter. Uses Claude."""
+"""Score jobs against the CV + preferences, and draft a cover letter. Uses the configured LLM."""
 from __future__ import annotations
 
 import json
 import re
 
-import anthropic
-
 from . import db
-from .config import ROOT, Config
-
-_client = None
-
-
-def client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        from dotenv import load_dotenv
-
-        load_dotenv(ROOT / ".env")  # lazy, so it works from scripts as well as the CLI
-        _client = anthropic.Anthropic()
-    return _client
-
-
-def _text(msg) -> str:
-    """Join the text blocks; newer models may lead with a thinking block."""
-    return "".join(b.text for b in msg.content if b.type == "text")
-
-
-def _json(text: str) -> dict:
-    m = re.search(r"\{.*\}", text, re.S)
-    return json.loads(m.group(0)) if m else {}
-
+from .config import Config
+from . import voice
+from .llm import complete, extract_json as _json
 
 def score(job: db.Job | dict, cfg: Config, cv: str, profile: dict) -> dict:
     prefs = cfg.search.model_dump()
@@ -39,7 +16,7 @@ def score(job: db.Job | dict, cfg: Config, cv: str, profile: dict) -> dict:
 CANDIDATE CV:
 {cv[:8000]}
 
-CANDIDATE PREFERENCES (hard requirements marked):
+CANDIDATE PREFERENCES:
 {json.dumps(prefs)}
 Work authorization / location: {json.dumps(profile.get('location', {}))}
 
@@ -53,12 +30,20 @@ Description:
 
 Score 1-5: 5 = strong fit on role, seniority, skills, remote and location eligibility;
 3 = partial; 1 = wrong role or ineligible (e.g. region-locked to somewhere the candidate cannot work).
-Reply with JSON only: {{"score": int, "reasons": "one or two sentences", "red_flags": "or empty"}}"""
-    r = client().messages.create(model=cfg.models.match, max_tokens=3000, messages=[{"role": "user", "content": prompt}])
-    d = _json(_text(r))
+Break the posting into its key requirements, weight each (importance 1-3) and say whether the CV shows it.
+Reply with JSON only:
+{{"score": int, "reasons": "one or two sentences", "red_flags": "or empty",
+  "required_years": int or null (minimum years of experience the posting asks for),
+  "requirements": [{{"req": str, "importance": 1-3, "status": "met" | "partial" | "missing"}}],
+  "gaps": [short skill or experience names the CV lacks and the posting wants]}}"""
+    d = _json(complete(cfg, "match", prompt))
     if "score" not in d:  # never silently turn a failed call into a "1"
-        raise RuntimeError(f"unparseable model reply (stop_reason={r.stop_reason})")
-    return {"score": int(d.get("score", 1)), "reasons": f"{d.get('reasons', '')} {d.get('red_flags', '')}".strip()}
+        raise RuntimeError("unparseable model reply")
+    sc, reasons = int(d.get("score", 1)), f"{d.get('reasons', '')} {d.get('red_flags', '')}".strip()
+    req, mine = d.get("required_years"), (profile.get("work") or {}).get("years_experience")
+    if isinstance(req, int) and isinstance(mine, (int, float)) and req > mine + cfg.search.max_years_gap and sc > 2:
+        sc, reasons = 2, f"Asks for {req}+ years, you have about {mine}. {reasons}"  # hard experience limit
+    return {"score": sc, "reasons": reasons, "req_years": req, "gaps": json.dumps(d.get("gaps") or [])}
 
 
 def cover_letter(job: dict, cfg: Config, cv: str, profile: dict) -> str:
@@ -76,8 +61,8 @@ PROFILE:
 
 JOB: {job['title']} at {job['company']}
 {job['description'][:5000]}"""
-    r = client().messages.create(model=cfg.models.write, max_tokens=3000, messages=[{"role": "user", "content": prompt}])
-    return _text(r).split("\n---")[0].strip()  # drop any commentary after a divider
+    out = complete(cfg, "write", prompt + voice.prompt_block()).split("\n---")[0].strip()  # drop any commentary after a divider
+    return voice.enforce(out, cfg)
 
 
 def email_body(job: dict, cfg: Config, cv: str, profile: dict) -> str:
@@ -97,5 +82,5 @@ CV:
 
 JOB: {job['title']} at {job['company']}
 {job['description'][:6000]}"""
-    r = client().messages.create(model=cfg.models.write, max_tokens=3000, messages=[{"role": "user", "content": prompt}])
-    return _text(r).split("\n---")[0].strip()
+    out = complete(cfg, "write", prompt + voice.prompt_block()).split("\n---")[0].strip()
+    return voice.enforce(out, cfg)

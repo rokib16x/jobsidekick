@@ -8,6 +8,7 @@ dependencies = [
     "google-api-python-client>=2.201.0",
     "google-auth-oauthlib>=1.5.0",
     "httpx>=0.28.1",
+    "mcp>=2.3.0",
     "playwright>=1.64.1",
     "pydantic>=2.14.2",
     "pydantic-settings>=2.16.2",
@@ -25,6 +26,11 @@ dev = [
 
 [project.scripts]
 sidekick = "jobsidekick.cli:app"
+
+[project.optional-dependencies]
+scrape = [
+    "python-jobspy>=1.4.1",
+]
 
 [build-system]
 requires = ["hatchling"]

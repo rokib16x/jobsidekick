@@ -38,8 +38,9 @@ def conn() -> sqlite3.Connection:
     c = sqlite3.connect(DB_PATH)
     c.row_factory = sqlite3.Row
     c.execute(SCHEMA)
+    c.execute("CREATE TABLE IF NOT EXISTS answers (key TEXT PRIMARY KEY, question TEXT, answer TEXT, source TEXT, created REAL)")
     have = {r[1] for r in c.execute("PRAGMA table_info(jobs)")}
-    for col in ("method", "email", "resume_path"):  # migrate databases made by older versions
+    for col in ("method", "email", "resume_path", "gaps", "req_years", "liveness"):  # migrate databases from older versions
         if col not in have:
             c.execute(f"ALTER TABLE jobs ADD COLUMN {col} TEXT")
     for r in c.execute("SELECT id, apply_url, description FROM jobs WHERE method IS NULL").fetchall():

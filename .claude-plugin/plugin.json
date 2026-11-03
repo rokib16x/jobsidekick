@@ -1,0 +1,6 @@
+{
+  "name": "jobsidekick",
+  "version": "0.2.0",
+  "description": "Job-search sidekick: find remote jobs, score them against your CV, draft tailored letters/resumes/emails, track the funnel. You approve every submit.",
+  "keywords": ["jobs", "job-search", "resume", "career"]
+}

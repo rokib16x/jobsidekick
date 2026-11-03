@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "jobsidekick": {
+      "command": "uv",
+      "args": ["run", "--project", "${CLAUDE_PLUGIN_ROOT}", "sidekick", "mcp"],
+      "env": { "JOBSIDEKICK_HOME": "${HOME}/.jobsidekick" }
+    }
+  }
+}

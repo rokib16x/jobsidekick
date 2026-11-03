@@ -10,6 +10,7 @@ location:
   city: ""
   country: ""
   timezone: ""
+  needs_sponsorship: ""     # yes / no. Blank = the tool always asks you; it never guesses visa answers
   work_authorization: "Authorized to work in ... / Need sponsorship: no"
   open_to_relocate: false
 work:

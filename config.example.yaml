@@ -8,8 +8,11 @@ search:
   exclude_title_words: ["intern", "junior", "manager", "director"]
   remote_only: true
   min_score: 4          # AI fit score 1-5; only jobs >= this get a cover letter and an application
+  max_years_gap: 2      # skip jobs asking for more than (your years of experience + this)
+  blacklist_companies: []
 
 sources:
+  starter_companies: true   # ~40 verified company boards (Greenhouse/Lever/Ashby); add more with `sidekick add-company`
   hn: true              # latest "Ask HN: Who is hiring?" thread
   remoteok: true
   remotive: true
@@ -19,6 +22,9 @@ sources:
   arbeitnow: true
   adzuna: false         # free key; set ADZUNA_APP_ID / ADZUNA_APP_KEY
   adzuna_country: us
+  jobspy: false         # OPT-IN scraping (Indeed/LinkedIn/Glassdoor/ZipRecruiter/BDJobs); against their terms, your risk. uv sync --extra scrape
+  jobspy_sites: [indeed]
+  jobspy_country: usa
   jsearch: false        # RAPIDAPI_KEY; Google-for-Jobs aggregate = LinkedIn/Indeed/Glassdoor listings, applied on the employer site
   serpapi: false        # SERPAPI_KEY
   greenhouse: []        # company board slugs, e.g. ["stripe", "gitlab"]
@@ -35,3 +41,18 @@ models:
   match: claude-haiku-5-5
   write: claude-sonnet-5-5
   browser: claude-sonnet-5-5
+
+llm:
+  provider: anthropic   # anthropic | openai | gemini | ollama (free, local) | custom (any OpenAI-compatible URL)
+  base_url: ""
+  api_key_env: ""
+
+email:
+  via: auto             # auto = Gmail drafts if credentials.json exists, else a mailto link
+
+resume:
+  enabled: true         # tailored one-job PDF resume (facts from your CV only)
+
+notify:
+  desktop: true         # macOS banner; Telegram/Slack turn on with env vars (see .env.example)
+  followup_days: 7

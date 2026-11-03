@@ -10,7 +10,8 @@ from pathlib import Path
 
 from .config import ROOT, Config
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.compose"]
+# compose = create drafts (also able to send; this code never does). readonly = read replies for `sidekick sync`.
+SCOPES = ["https://www.googleapis.com/auth/gmail.compose", "https://www.googleapis.com/auth/gmail.readonly"]
 CREDS, TOKEN = ROOT / "credentials.json", ROOT / "data" / "gmail-token.json"
 
 
@@ -57,6 +58,8 @@ def _service():
     from googleapiclient.discovery import build
 
     creds = Credentials.from_authorized_user_file(str(TOKEN), SCOPES) if TOKEN.exists() else None
+    if creds and not creds.has_scopes(SCOPES):  # token made before a feature needed more access: ask again once
+        creds = None
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())

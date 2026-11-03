@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, Field
 
-ROOT = Path(__file__).resolve().parent.parent
+# JOBSIDEKICK_HOME lets the tool keep your config, CV and data in one folder when installed as a plugin or package
+ROOT = Path(os.environ.get("JOBSIDEKICK_HOME") or Path(__file__).resolve().parent.parent).expanduser()
 DB_PATH = ROOT / "data" / "jobs.db"
+
+
+class LLM(BaseModel):
+    provider: str = "anthropic"  # anthropic | openai | gemini | ollama | custom (OpenAI-compatible)
+    base_url: str = ""
+    api_key_env: str = ""  # name of the env var holding the key, if not the default for the provider
 
 
 class Models(BaseModel):
@@ -23,10 +31,13 @@ class Search(BaseModel):
     locations_ok: list[str] = Field(default_factory=lambda: ["worldwide", "anywhere", "global"])
     min_salary_usd: int | None = None
     min_score: int = 4
+    blacklist_companies: list[str] = Field(default_factory=list)
+    max_years_gap: int = 2  # skip jobs asking for more than (your years + this)
 
 
 class Sources(BaseModel):
     hn: bool = True
+    starter_companies: bool = True  # poll the verified starter list of company boards
     remoteok: bool = True
     remotive: bool = True
     wwr: bool = True
@@ -37,6 +48,9 @@ class Sources(BaseModel):
     adzuna_country: str = "us"
     jsearch: bool = False     # needs RAPIDAPI_KEY; covers LinkedIn/Indeed/Glassdoor listings
     serpapi: bool = False     # needs SERPAPI_KEY; Google Jobs
+    jobspy: bool = False      # OPT-IN scraping of Indeed/LinkedIn/Glassdoor/ZipRecruiter/BDJobs via python-jobspy; against those sites' terms, your risk
+    jobspy_sites: list[str] = Field(default_factory=lambda: ["indeed"])
+    jobspy_country: str = "usa"
     greenhouse: list[str] = Field(default_factory=list)
     lever: list[str] = Field(default_factory=list)
     ashby: list[str] = Field(default_factory=list)
@@ -57,15 +71,22 @@ class Resume(BaseModel):
     enabled: bool = True  # make a tailored one-job PDF resume (facts from your CV only)
 
 
+class Notify(BaseModel):
+    desktop: bool = True  # macOS banner; Telegram/Slack turn on when TELEGRAM_BOT_TOKEN+TELEGRAM_CHAT_ID / SLACK_WEBHOOK_URL are set
+    followup_days: int = 7
+
+
 class Config(BaseModel):
     cv_path: str = "profile/cv.pdf"
     profile_path: str = "profile/profile.yaml"
+    llm: LLM = LLM()
     models: Models = Models()
     search: Search = Search()
     sources: Sources = Sources()
     apply: Apply = Apply()
     email: Email = Email()
     resume: Resume = Resume()
+    notify: Notify = Notify()
 
     @property
     def cv_file(self) -> Path:
@@ -83,7 +104,14 @@ def load_profile(cfg: Config) -> dict:
     p = ROOT / cfg.profile_path
     if not p.exists():
         raise SystemExit(f"Missing {cfg.profile_path}. Copy profile/profile.example.yaml and fill it in.")
-    return yaml.safe_load(p.read_text()) or {}
+    return _clean(yaml.safe_load(p.read_text()) or {})
+
+
+def _clean(x):
+    """Template placeholders like 'FILL IN: ...' count as empty, so they are never used as an answer."""
+    if isinstance(x, dict):
+        return {k: _clean(v) for k, v in x.items()}
+    return "" if isinstance(x, str) and "FILL IN" in x else x
 
 
 def cv_text(cfg: Config) -> str:

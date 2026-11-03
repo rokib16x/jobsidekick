@@ -107,7 +107,7 @@ def ashby(client: httpx.Client, name: str) -> list[Job]:
     ) for d in r.json().get("jobs", [])] if r.status_code == 200 else []
 
 
-REMOTE_ONLY_SOURCES = {"remoteok", "remotive", "wwr", "himalayas", "jobicy", "arbeitnow", "jsearch", "serpapi"}
+REMOTE_ONLY_SOURCES = {"jobspy", "remoteok", "remotive", "wwr", "himalayas", "jobicy", "arbeitnow", "jsearch", "serpapi"}
 
 
 def wwr(client: httpx.Client) -> list[Job]:
@@ -212,6 +212,25 @@ def serpapi(client: httpx.Client, cfg: Config) -> list[Job]:
     return out
 
 
+def jobspy(cfg: Config) -> list[Job]:
+    """OPT-IN. python-jobspy scrapes job sites directly, which their terms forbid and which can get your IP blocked. Use at your own risk."""
+    try:
+        from jobspy import scrape_jobs
+    except ImportError as e:
+        raise RuntimeError("install it with: uv sync --extra scrape") from e
+    out = []
+    for q in cfg.search.titles[:4]:
+        df = scrape_jobs(site_name=cfg.sources.jobspy_sites, search_term=q, results_wanted=25, hours_old=168, is_remote=True,
+                         country_indeed=cfg.sources.jobspy_country, description_format="markdown", verbose=0)
+        for r in df.to_dict("records"):
+            sal = f"{r.get('min_amount')}-{r.get('max_amount')} {r.get('currency')}" if r.get("min_amount") == r.get("min_amount") and r.get("min_amount") else ""
+            out.append(Job(
+                id=f"jobspy:{r['id']}", source="jobspy", title=str(r.get("title") or ""), company=str(r.get("company") or ""),
+                location=str(r.get("location") or "Remote"), url=str(r.get("job_url") or ""), apply_url=str(r.get("job_url_direct") or r.get("job_url") or ""),
+                description=str(r.get("description") or ""), salary=sal))
+    return out
+
+
 def fetch_all(cfg: Config, log=print) -> list[Job]:
     s, jobs = cfg.sources, []
     with httpx.Client(headers=UA, timeout=30, follow_redirects=True) as c:
@@ -226,9 +245,12 @@ def fetch_all(cfg: Config, log=print) -> list[Job]:
         if s.adzuna: tasks.append(("adzuna", lambda: adzuna(c, cfg)))
         if s.jsearch: tasks.append(("jsearch", lambda: jsearch(c, cfg)))
         if s.serpapi: tasks.append(("serpapi", lambda: serpapi(c, cfg)))
-        tasks += [(f"greenhouse:{t}", lambda t=t: greenhouse(c, t)) for t in s.greenhouse]
-        tasks += [(f"lever:{t}", lambda t=t: lever(c, t)) for t in s.lever]
-        tasks += [(f"ashby:{t}", lambda t=t: ashby(c, t)) for t in s.ashby]
+        if s.jobspy: tasks.append(("jobspy", lambda: jobspy(cfg)))
+        from .companies import watchlist
+
+        wl = watchlist(s.starter_companies)  # starter list + `sidekick add-company` + config.yaml entries
+        for key, fn, extra in (("greenhouse", greenhouse, s.greenhouse), ("lever", lever, s.lever), ("ashby", ashby, s.ashby)):
+            tasks += [(f"{key}:{t}", lambda t=t, fn=fn: fn(c, t)) for t in dict.fromkeys(wl[key] + extra)]
         for name, fn in tasks:
             try:
                 got = fn()
@@ -245,6 +267,8 @@ def prefilter(jobs: list[Job], cfg: Config) -> list[Job]:
     for j in jobs:
         hay = f"{j.title} {j.description}".lower()
         if any(w.lower() in j.title.lower() for w in s.exclude_title_words):
+            continue
+        if any(b.lower() in j.company.lower() for b in s.blacklist_companies):
             continue
         if s.remote_only and "remote" not in f"{j.location} {hay[:600]}".lower() and j.source not in REMOTE_ONLY_SOURCES:
             continue

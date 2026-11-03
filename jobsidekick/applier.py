@@ -38,7 +38,7 @@ Rules you must follow:
 """
 
 
-def _task(job: dict, profile: dict, submit: bool, resume: str) -> str:
+def _task(job: dict, profile: dict, submit: bool, resume: str, plan_text: str = "") -> str:
     end = (
         "When every required field is filled, click the final Submit/Send application button, "
         "wait for the confirmation, then report status 'submitted'."
@@ -51,6 +51,7 @@ Open: {job['apply_url'] or job['url']}
 (If this is a job-board page, click through its Apply button to the real application form.)
 {GUARDRAILS}
 Resume file: {resume}
+{('Planned answers. Type EXACTLY these values into the matching fields (for dropdowns pick the option with this text). ' + chr(10) + 'Fields not listed: leave blank if optional; if required and not listed, stop with status needs_human naming the field.' + chr(10) + plan_text) if plan_text else ''}
 Candidate data (answer form questions from this):
 {json.dumps(profile, indent=1)}
 
@@ -66,11 +67,13 @@ CONTINUE = ("The human has now handled the login/CAPTCHA/verification in this br
 
 
 async def _run_agent(task: str, cfg: Config, browser, files: list[str]) -> Outcome:
-    from browser_use import Agent, ChatAnthropic
+    from browser_use import Agent
+
+    from .llm import browser_llm
 
     agent = Agent(
         task=task,
-        llm=ChatAnthropic(model=cfg.models.browser),
+        llm=browser_llm(cfg),
         browser=browser,
         available_file_paths=files,
         output_model_schema=Outcome,
@@ -123,10 +126,28 @@ async def apply_all(jobs: list, cfg: Config, profile: dict, limit: int) -> None:
             resume = job.get("resume_path") or str(cfg.cv_file)
             if not Path(resume).exists():
                 resume = str(cfg.cv_file)
+            plan_text = ""
+            try:  # read the real form ahead of time (Greenhouse) so the agent only has to type
+                from . import ats
+                from .config import cv_text
+
+                p = ats.plan(job, cfg, profile, cv_text(cfg))
+                if p:
+                    for f in ats.missing(p):
+                        if interactive:
+                            v = Prompt.ask(f"[yellow]Required question:[/yellow] {f['label']}" + (f"\n  options: {f['options']}" if f["options"] else ""), default="")
+                            if v:
+                                from . import answers
+
+                                answers.remember(f["label"], v)
+                                f["value"] = answers.pick_option(v, f["options"]) if f["options"] else v
+                    plan_text = ats.to_task_text(p)
+            except Exception as e:  # a plan is a bonus; the agent can still do it alone
+                console.print(f"[dim]no form plan: {e}[/dim]")
             console.rule(f"[bold]{job['title']} @ {job['company']}  (score {job['score']})")
             console.print(job["url"], f"\nresume: {Path(resume).name}")
             try:
-                out = await _run_agent(_task(job, profile, auto, resume), cfg, browser, [resume])
+                out = await _run_agent(_task(job, profile, auto, resume, plan_text), cfg, browser, [resume])
                 # human hand-off: login / CAPTCHA / verification code, done by you in the open window
                 for _ in range(2):
                     if out.status != "needs_human" or not interactive:

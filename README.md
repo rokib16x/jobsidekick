@@ -2,89 +2,109 @@
 
 > Your job-search sidekick. It does the boring searching and form-filling; you stay in charge.
 
-**Find remote jobs, score them against your CV, and let an AI browser agent fill in the applications. You approve every submit.**
+**Find remote jobs, score them against your CV, tailor your resume, draft the emails, fill the forms, and track the replies. You approve every submit and every send.**
 
-- Pulls from 10+ sources: Hacker News "Who is hiring?", RemoteOK, Remotive, We Work Remotely, Himalayas, Jobicy, Arbeitnow, plus Greenhouse / Lever / Ashby company boards. Optional Adzuna, JSearch and SerpAPI add Google-for-Jobs coverage (LinkedIn, Indeed, Glassdoor listings).
-- Claude scores every job 1-5 against your CV and preferences *before* anything is applied to, so you don't spray 200 bad applications.
-- Writes a cover letter from facts in your CV only. It is told never to invent experience.
-- A real browser agent ([browser-use](https://github.com/browser-use/browser-use)) fills the form and uploads your CV. In `review` mode it stops and asks before each Submit.
-- Local-first: your CV, answers and tracker (SQLite) stay on your machine. No hosted service, no account.
+- **Finds jobs** from 10+ free sources (Hacker News "Who is hiring?", RemoteOK, Remotive, We Work Remotely, Himalayas, Jobicy, Arbeitnow), ~40 verified company boards (Greenhouse / Lever / Ashby) and any link you paste. Optional: Adzuna, JSearch, SerpAPI, LinkedIn job-alert emails, and opt-in scraping via JobSpy.
+- **Scores honestly**: Claude (or OpenAI, Gemini, or a free local Ollama model) rates each job 1-5 against your CV, lists the skills you lack, enforces an experience limit, and checks the posting is still open.
+- **Writes only true things**: cover letters, application emails and a tailored one-job PDF resume use facts from your CV only. Any number not in your CV is flagged; stock AI phrases are filtered out.
+- **Applies safely**: a browser agent fills web forms (Greenhouse questions are read from the API and pre-answered), emails become Gmail drafts with the resume attached, and logins / CAPTCHAs / verification codes are handed to you.
+- **Tracks everything**: local web dashboard, funnel stats, Gmail reply tracking, follow-up reminders, daily digest to Telegram/Slack/desktop.
+- **Local-first**: your CV, answers and tracker (SQLite) stay on your machine. No hosted service, no telemetry, no account.
 
 ## Why not just auto-apply to LinkedIn?
-Mass Easy-Apply bots get accounts restricted and send generic answers. jobsidekick finds LinkedIn/Indeed *listings* through legal aggregator APIs, then applies on the employer's own careers page (Greenhouse, Lever, Ashby...). It skips linkedin.com by default; remove it from `apply.skip_domains` at your own risk.
+Mass Easy-Apply bots get accounts restricted and send generic answers. JobSidekick finds LinkedIn/Indeed *listings* through aggregator APIs and your own LinkedIn alert emails, then applies on the employer's own careers page. It skips linkedin.com by default; remove it from `apply.skip_domains` at your own risk. It sends nothing by itself: no auto-submit by default, no auto-sent emails, no cold messages.
 
 ## Quick start
 ```bash
 uv sync && uv run playwright install chromium
-cp .env.example .env                                   # ANTHROPIC_API_KEY (required)
-cp config.example.yaml config.yaml                     # titles, keywords, min_score, sources, apply mode
-cp profile/profile.example.yaml profile/profile.yaml   # your details + canned answers
-cp ~/your-cv.pdf profile/cv.pdf
+cp .env.example .env                      # add your ANTHROPIC_API_KEY (or another provider)
+uv run sidekick init ~/your-cv.pdf        # reads your CV, writes profile.yaml + config.yaml for you to check
 
-uv run sidekick scan      # fetch + keyword filter
-uv run sidekick match     # Claude scores 1-5, keeps >= min_score
-uv run sidekick draft     # cover letter per match
-uv run sidekick resume    # tailored one-job PDF resume (facts from your CV only)
-uv run sidekick review    # what's queued, and HOW each job takes applications (form / email / login)
-uv run sidekick email     # jobs that apply by email -> Gmail draft with CV attached (or a mailto link)
-uv run sidekick login URL # sign in to a site yourself once; the agent reuses the session
-uv run sidekick apply     # browser agent fills web forms (mode from config)
-uv run sidekick status    # applied / needs-you list
-uv run sidekick run       # everything above
+uv run sidekick scan       # fetch + keyword filter (free, no API key needed)
+uv run sidekick match      # AI scores 1-5, lists gaps, checks experience limit
+uv run sidekick draft      # cover letter per match (skips postings that closed)
+uv run sidekick resume     # tailored PDF resume per job, with an ATS-readability check
+uv run sidekick review     # the queue, and HOW each job takes applications
+uv run sidekick dashboard  # local web dashboard
 ```
-`scan` needs no API key, so you can see the pipeline working before you spend anything.
+Or everything unattended except applying: `uv run sidekick daily`, and `uv run sidekick schedule install --time 09:00`.
+
+## Commands
+| Command | What it does |
+|---|---|
+| `init CV.pdf` | Setup wizard: profile.yaml and config.yaml from your CV |
+| `scan` / `match` / `draft` / `resume` | The pipeline |
+| `add URL...` | Add a job you found by its link; scored like any other |
+| `add-company NAME-OR-URL` | Watch a company's Greenhouse/Lever/Ashby board (found automatically) |
+| `review` | Ready jobs, with apply method (form / email / login) |
+| `plan [JOB]` | Preview exactly what would be typed into a Greenhouse form; answer what it can't |
+| `answers [Q A]` | List / save answers to screening questions, reused on every future form |
+| `email` | Applications by email: Gmail draft with resume attached (or a mailto link). Never sends |
+| `login URL` | Sign in yourself once in the agent's browser; session is kept |
+| `apply` | Browser agent fills web forms; you confirm each Submit |
+| `sync` | Read Gmail (read-only): update statuses from replies, import LinkedIn alert emails |
+| `outreach [JOB]` | Draft a LinkedIn note and email to a hiring manager (two-fact rule). You find the person and send |
+| `prep JOB` / `stories` | Interview prep pack; STAR story bank from your CV |
+| `stats` / `gaps` | Funnel by source and method; skills jobs want that your CV lacks |
+| `dashboard` / `export` | Local web UI (127.0.0.1 only); CSV export |
+| `daily` / `schedule install\|remove` | The unattended routine + digest; run it every day |
+| `mcp` | MCP server for Claude Desktop/Code (no tool can submit or send) |
 
 ## How each job gets applied to
 `scan` tags every job with how it takes applications:
 
-| How | What jobsidekick does |
+| How | What JobSidekick does |
 |---|---|
-| `form` (Greenhouse, Lever, Ashby, Workable...) | Browser agent fills the form with your tailored resume and cover letter; you confirm Submit. |
-| `email` ("email your CV to jobs@...") | `sidekick email` writes the email, following the posting's own "how to apply" asks, and creates a **Gmail draft** with the resume attached. It never sends; you read it and press Send. Without Gmail set up it makes a prefilled `mailto:` link instead. |
-| `login` (Workday, LinkedIn, Indeed...) or any site that demands an account | The agent stops and hands over. You sign in in the open browser window, press Enter, and it carries on. Or run `sidekick login <url>` once beforehand; the session is saved in `data/browser-profile`. It never creates accounts or types passwords. |
+| `form` (Greenhouse, Lever, Ashby, Workable...) | Agent fills the form with your tailored resume and cover letter. For Greenhouse the real questions are read from the API, answered up front from your profile, saved answers, or a CV-only model draft, and shown in `plan`. Legal/eligibility questions (visa, work permit, non-compete...) are never guessed by a model. SSN / date of birth / bank / ID questions are never auto-filled. |
+| `email` ("email your CV to jobs@...") | `sidekick email` writes the email following the posting's own "how to apply" asks and creates a Gmail draft with the resume attached. You read it and press Send. |
+| `login` (Workday, LinkedIn, Indeed...) or any account wall | The agent stops and hands over. You sign in in the open window, press Enter, and it carries on. It never creates accounts or types passwords. |
 | `unknown` (job-board pages) | The agent clicks through to the real application, then follows one of the above. |
 
 CAPTCHAs and emailed verification codes are also hand-offs to you.
 
-### Gmail drafts (optional, one-time setup)
+### Gmail drafts and sync (optional, one-time setup)
 1. console.cloud.google.com: create a project and enable the **Gmail API**.
 2. OAuth consent screen: type External, add your own address as a test user.
-3. Credentials > Create OAuth client ID > **Desktop app**; download the JSON as `credentials.json` in the project root (it is gitignored).
-4. Run `uv run sidekick email`. A browser opens once for you to approve; the token stays in `data/`.
+3. Credentials > Create OAuth client ID > **Desktop app**; download the JSON as `credentials.json` in the project root (gitignored).
+4. Run `uv run sidekick email` or `sync`. A browser opens once for you to approve; the token stays in `data/`.
 
-Note: Google has no drafts-only permission. The `gmail.compose` scope also allows sending, but this code only ever creates drafts.
+Google has no drafts-only permission: the `gmail.compose` scope also allows sending, but this code only ever creates drafts. `sync` uses `gmail.readonly`.
 
-## Tailored resumes
-`sidekick resume` asks Claude to reorder and re-emphasise **your own CV** for each job and renders an ATS-friendly PDF into `data/resumes/`. It may not add a skill, employer, date or metric. As a guardrail, any number in the result that is not in your CV is flagged for you to check. Read each PDF before sending; turn it off with `resume.enabled: false`.
+## Models
+`llm.provider` in `config.yaml`: `anthropic` (default), `openai`, `gemini`, `ollama` (free, runs on your machine) or `custom` (any OpenAI-compatible URL). Set `models.match` / `models.write` / `models.browser` to model names for that provider. The browser agent needs a vision-capable model; small local models struggle with it, but scoring, letters and resumes work fine locally.
+
+## Use it from Claude
+- **MCP**: add to Claude Desktop's config: `{"mcpServers": {"jobsidekick": {"command": "uv", "args": ["run", "--project", "/path/to/jobsidekick", "sidekick", "mcp"]}}}`
+- **Claude Code plugin**: this repo is also a plugin (`.claude-plugin/`, `skills/`, `.mcp.json`); it keeps your data in `~/.jobsidekick` (`JOBSIDEKICK_HOME`).
 
 ## Sources and keys
 | Source | Key | Notes |
 |---|---|---|
 | HN, RemoteOK, Remotive, WWR, Himalayas, Jobicy, Arbeitnow | none | on by default |
-| Greenhouse / Lever / Ashby | none | list company slugs in `config.yaml` |
+| Starter company boards + `add-company` | none | official public APIs |
 | Adzuna | free `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` | many countries |
 | JSearch (RapidAPI) | `RAPIDAPI_KEY` | LinkedIn / Indeed / Glassdoor listings |
 | SerpAPI Google Jobs | `SERPAPI_KEY` | prefers the employer's own apply link |
+| LinkedIn alert emails | Gmail setup | `sidekick sync`; no LinkedIn scraping or login |
+| JobSpy (opt-in) | none | scrapes Indeed/LinkedIn/Glassdoor/BDJobs; **against their terms, can block your IP; your risk**. `uv sync --extra scrape` |
 
-RemoteOK, Remotive and Jobicy ask for a credit/link back to them; keep their links when you share results.
-
-## Apply modes
-- `review` (default): fills the form, you type y/n to submit.
-- `auto`: submits by itself, up to `max_per_run`. Try `review` on a few jobs first.
+RemoteOK, Remotive and Jobicy ask for a credit/link back; keep their links when you share results.
 
 ## Guardrails
-- Uses only your CV and `profile.yaml`; unanswerable questions are marked `manual` for you.
-- Never creates accounts, enters passwords or solves CAPTCHAs. Sign in once yourself in the agent's browser window (the profile persists in `data/browser-profile`).
-- Ignores instructions found on web pages and in postings (including ones aimed at AI tools); it only completes the one application.
-- Cross-source dedupe, so the same posting syndicated on three boards is applied to once.
+- Uses only your CV and `profile.yaml`; unanswerable questions are marked `manual` for you. Template "FILL IN" text in your profile counts as empty.
+- Never creates accounts, enters passwords or solves CAPTCHAs.
+- Ignores instructions found on web pages, in postings and in emails (including ones aimed at AI tools).
+- The dashboard binds to 127.0.0.1 and rejects cross-site requests; the MCP server has no submit or send tool.
+- Cross-source dedupe, so a posting syndicated on three boards is handled once.
 
 ## Honest limitations
-- Application forms vary wildly. Expect some to end up in `manual`; direct ATS links work best, aggregator links less so.
-- Each browser application uses many LLM steps. Cap `max_per_run` and check your spend.
+- Application forms vary wildly. Expect some to end up in `manual`; direct ATS links work best, aggregator links less so. Form filling, Gmail sign-in and the Claude plugin install are the least battle-tested parts; please report problems.
+- Each browser application uses many LLM steps. Cap `max_per_run` and watch your spend.
+- Tailored resumes are rewordings of your own CV. Read each one before sending.
 - You are responsible for the accuracy of what is submitted in your name and for each site's terms.
 
 ## Roadmap
-Local dashboard, Claude Code plugin, reply tracking, more ATS adapters (Workable, SmartRecruiters, Workday), success-rate benchmarks.
+Browser extension that fills forms in your own Chrome, deterministic fillers for Lever/Ashby/Workable forms, more regional boards, success-rate benchmarks.
 
 ## Contributing
 PRs welcome: new sources go in `jobsidekick/sources.py` (one function returning `Job`s) with a test in `tests/`.

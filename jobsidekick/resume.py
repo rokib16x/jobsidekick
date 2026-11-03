@@ -6,7 +6,7 @@ import json
 import re
 
 from .config import ROOT, Config
-from .matcher import _json, _text, client
+from .llm import complete, extract_json as _json
 
 OUT = ROOT / "data" / "resumes"
 
@@ -37,10 +37,10 @@ JOB: {title} at {company}
 CSS = """
 @page { size: A4; margin: 14mm 15mm; }
 body { font: 10pt/1.38 -apple-system, 'Helvetica Neue', Arial, sans-serif; color: #1c1f26; }
-h1 { font-size: 20pt; margin: 0; letter-spacing: .5px; }
-.headline { color: #2a4a8a; font-weight: 600; letter-spacing: 1.5px; font-size: 9.5pt; margin: 2px 0 4px; text-transform: uppercase; }
+h1 { font-size: 20pt; margin: 0; }
+.headline { color: #2a4a8a; font-weight: 600; font-size: 9.5pt; margin: 2px 0 4px; text-transform: uppercase; }
 .contact { color: #555; font-size: 9pt; }
-h2 { font-size: 9.5pt; letter-spacing: 2px; text-transform: uppercase; color: #2a4a8a; border-bottom: 1px solid #c9d1e3;
+h2 { font-size: 9.5pt; text-transform: uppercase; color: #2a4a8a; border-bottom: 1px solid #c9d1e3;
      padding-bottom: 2px; margin: 12px 0 6px; }
 .row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 7px; }
 .role { font-weight: 700; } .co { color: #2a4a8a; font-weight: 600; } .dim { color: #777; font-size: 9pt; }
@@ -60,14 +60,10 @@ def _check_numbers(data: dict, cv: str) -> list[str]:
 
 
 def tailor(job: dict, cfg: Config, cv: str) -> dict:
-    r = client().messages.create(
-        model=cfg.models.write, max_tokens=8000,
-        messages=[{"role": "user", "content": PROMPT.format(
-            cv=cv[:9000], title=job["title"], company=job["company"], description=job["description"][:5000])}],
-    )
-    data = _json(_text(r))
+    data = _json(complete(cfg, "write", PROMPT.format(
+        cv=cv[:9000], title=job["title"], company=job["company"], description=job["description"][:5000]), max_tokens=8000))
     if not data.get("experience"):
-        raise RuntimeError(f"unparseable resume reply (stop_reason={r.stop_reason})")
+        raise RuntimeError("unparseable resume reply")
     return data
 
 
@@ -111,6 +107,32 @@ def to_pdf(html_text: str, path) -> None:
         browser.close()
 
 
+def ats_check(path, profile: dict) -> list[str]:
+    """Read the PDF's text layer the way a hiring-software parser does and report anything it would trip on."""
+    from pypdf import PdfReader
+
+    r = PdfReader(str(path))
+    text = "\n".join(p.extract_text() or "" for p in r.pages)
+    low, b, issues = text.lower(), profile.get("basics", {}), []
+    if len(r.pages) > 2:
+        issues.append(f"{len(r.pages)} pages (aim for 2 or fewer)")
+    if len(text) < 600:
+        issues.append("very little extractable text (is the PDF an image?)")
+    if re.search(r"\(cid:\d+\)|\ufffd", text):
+        issues.append("garbled characters in the text layer")
+    if b.get("full_name") and b["full_name"].lower() not in low:
+        issues.append("your name is not readable as text")
+    if b.get("email") and b["email"].lower() not in low:
+        issues.append("email not readable as text")
+    digits = re.sub(r"\D", "", b.get("phone", ""))
+    if digits and digits not in re.sub(r"\D", "", text):
+        issues.append("phone not readable as text")
+    for h in ("experience", "education", "skills"):
+        if h not in low:
+            issues.append(f"no '{h}' heading")
+    return issues
+
+
 def make(job: dict, cfg: Config, cv: str, profile: dict) -> tuple[str, list[str]]:
     """Returns (pdf path, warnings). Warnings list numbers that are not in your CV."""
     data = tailor(job, cfg, cv)
@@ -119,4 +141,4 @@ def make(job: dict, cfg: Config, cv: str, profile: dict) -> tuple[str, list[str]
     slug = re.sub(r"[^a-z0-9]+", "-", f"{job['company']}-{job['title']}".lower()).strip("-")[:60]
     path = OUT / f"{profile.get('basics', {}).get('full_name', 'resume').replace(' ', '_')}-{slug}.pdf"
     to_pdf(render_html(data, profile), path)
-    return str(path), warnings
+    return str(path), [f"number not in your CV: {n}" for n in warnings] + [f"ATS check: {i}" for i in ats_check(path, profile)]

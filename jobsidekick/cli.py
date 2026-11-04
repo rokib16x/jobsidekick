@@ -382,6 +382,55 @@ def manual(open_links: bool = typer.Option(True, "--open/--list", help="Open eac
             db.update(r["id"], status="applied" if ans == "y" else "skipped")
 
 
+@app.command()
+def funded(days: int = 14, limit: int = 40, include_all: bool = typer.Option(False, "--all", help="Also keep startups that don't look relevant to your search"),
+           enrich_: bool = typer.Option(True, "--enrich/--no-enrich", help="Check hiring signals and public contacts")) -> None:
+    """Find startups that just raised money (they tend to hire soon), check for a public job board, and note the contact addresses
+    each company publishes itself. Never emails anyone."""
+    from . import funded as F
+
+    cfg = C.load()
+    console.print(f"Reading funding news from the last {days} days...")
+    items = F.fetch_news(days, log=console.print)
+    leads = F.extract_leads(items, cfg)
+    leads = [l for l in leads if include_all or l["relevant"]][:limit]
+    console.print(f"{len(items)} stories -> {len(leads)} startups worth a look")
+    out = []
+    for l in leads:
+        out.append(F.enrich(l) if enrich_ else l)
+        e = out[-1]
+        console.print(f"  {e['company'][:28]:28} {e.get('round', '')[:9]:9} {e.get('amount', '')[:8]:8} jobs={e.get('open_jobs', 0):<3} contacts={len(e.get('contacts', []))}")
+    console.print(f"[green]{F.save(out)} new[/green] startups saved. See them with `sidekick leads`, or in the dashboard.")
+
+
+@app.command()
+def leads(all_: bool = typer.Option(False, "--all")) -> None:
+    """Funded startups found by `sidekick funded`: round, hiring signal, public contacts."""
+    import json
+
+    t = Table("company", "round", "hiring signal", "public contacts", "what it does", "id")
+    for r in db.conn().execute("SELECT * FROM leads " + ("" if all_ else "WHERE relevant=1 ") + "ORDER BY open_jobs DESC, published DESC LIMIT 80"):
+        cs = json.loads(r["contacts"] or "[]")
+        t.add_row(r["company"][:24], f"{r['round'] or ''} {r['amount'] or ''}".strip(), f"{r['open_jobs']} jobs ({r['ats'].split(':')[0]})" if r["ats"] else "no public board",
+                  ", ".join(c["email"] for c in cs[:2]) or "-", (r["does"] or "")[:42], r["id"])
+    console.print(t)
+
+
+@app.command()
+def reach(target: str = typer.Argument(..., help="Startup name or id from `sidekick leads`")) -> None:
+    """Draft outreach (email + LinkedIn note) to a funded startup. Drafts only: you pick the person and send."""
+    from . import coach
+
+    cfg = C.load()
+    row = db.conn().execute("SELECT * FROM leads WHERE id=? OR company LIKE ? ORDER BY published DESC", (target, f"%{target}%")).fetchone()
+    if not row:
+        raise SystemExit("no such startup. Run `sidekick funded` first, then `sidekick leads`.")
+    path = coach.lead_outreach(dict(row), cfg, C.cv_text(cfg), C.load_profile(cfg))
+    db.conn().execute("UPDATE leads SET status='drafted' WHERE id=?", (row["id"],))
+    db.conn().commit()
+    console.print(f"{row['company']} -> {path}")
+
+
 @app.command("mcp")
 def mcp_cmd() -> None:
     """Run as an MCP server (stdio) so Claude Desktop/Code can browse and manage your jobs. It cannot submit or send anything."""

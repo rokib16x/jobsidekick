@@ -503,3 +503,14 @@ def test_activity_buckets_and_ui_routes(tmp_path, monkeypatch):
                 assert e.code == code
     finally:
         srv.shutdown()
+
+
+def test_text_zero_is_not_picked(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "t.db")
+    db.add_new([Job(id=f"a:{i}", source="wwr", title=f"Eng {i}", company=f"C{i}", location="", url="u", apply_url="u", description="d") for i in (1, 2)])
+    for i in (1, 2):
+        db.update(f"a:{i}", status="ready", picked=0)  # stored as the text "0" in an untyped column
+    db.update("a:2", picked=1)
+    assert [r["id"] for r in db.only_picked(db.by_status("ready"))] == ["a:2"]
+    db.update("a:2", picked=0)
+    assert len(db.only_picked(db.by_status("ready"))) == 2  # nothing picked: whole queue

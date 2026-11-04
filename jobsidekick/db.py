@@ -39,6 +39,9 @@ def conn() -> sqlite3.Connection:
     c.row_factory = sqlite3.Row
     c.execute(SCHEMA)
     c.execute("CREATE TABLE IF NOT EXISTS answers (key TEXT PRIMARY KEY, question TEXT, answer TEXT, source TEXT, created REAL)")
+    c.execute("""CREATE TABLE IF NOT EXISTS leads (id TEXT PRIMARY KEY, company TEXT, round TEXT, amount TEXT, investors TEXT, does TEXT,
+        relevant INTEGER, source TEXT, link TEXT, published REAL, website TEXT, ats TEXT, open_jobs INTEGER DEFAULT 0, contacts TEXT,
+        status TEXT DEFAULT 'new', notes TEXT, created REAL)""")
     have = {r[1] for r in c.execute("PRAGMA table_info(jobs)")}
     for col in ("method", "email", "resume_path", "gaps", "req_years", "liveness", "picked"):  # migrate databases from older versions
         if col not in have:
@@ -103,7 +106,7 @@ def update(job_id: str, **fields) -> None:
 def only_picked(rows: list) -> list:
     """If you ticked jobs in the dashboard, work on those only; if you ticked none, work on everything in the queue."""
     any_picked = conn().execute("SELECT 1 FROM jobs WHERE picked=1 AND status IN ('ready','manual','drafted') LIMIT 1").fetchone()
-    return [r for r in rows if r["picked"]] if any_picked else rows
+    return [r for r in rows if int(r["picked"] or 0)] if any_picked else rows  # picked may be stored as text, "0" must not count
 
 
 def counts() -> dict[str, int]:

@@ -43,6 +43,8 @@ Or everything unattended except applying: `uv run sidekick daily`, and `uv run s
 | `login URL` | Sign in yourself once in the agent's browser; session is kept |
 | `apply` | Browser agent fills web forms; you confirm each Submit |
 | `sync` | Read Gmail (read-only): update statuses from replies, import LinkedIn alert emails |
+| `funded` / `leads` | Startups that just raised money (from public funding news), with a hiring signal (public job board) and any contact the company publishes itself |
+| `reach STARTUP` | Draft outreach to a funded startup: email + LinkedIn note, one fact from the news and one from your CV. Draft only |
 | `outreach [JOB]` | Draft a LinkedIn note and email to a hiring manager (two-fact rule). You find the person and send |
 | `prep JOB` / `stories` | Interview prep pack; STAR story bank from your CV |
 | `stats` / `gaps` | Funnel by source and method; skills jobs want that your CV lacks |
@@ -57,6 +59,12 @@ Or everything unattended except applying: `uv run sidekick daily`, and `uv run s
 - Cards, list view, pipeline board, "apply by hand" queue, funnel and skill-gap insights, saved answers, and an activity timeline (day / week / month / year).
 - Click a job for its score reasons, gaps, tailored resume, cover letter and the posting.
 - It cannot submit applications or send email: **Apply** shows the terminal commands, where you confirm each Submit. It binds to 127.0.0.1 and rejects cross-site requests.
+
+## Funded startups (they tend to hire soon)
+`uv run sidekick funded` reads funding news (TechCrunch, Crunchbase News, Tech.eu, Sifted, Inc42, Tech in Asia, BetaKit), keeps real company raises that fit your search, checks whether the company has a public job board (Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Personio, Breezy, Workday), and notes any contact address the company publishes on its own site (robots.txt respected). They appear in the web app under **Funded startups**.
+
+`uv run sidekick reach <startup>` writes a short email and LinkedIn note: one real fact from the funding story, one from your CV, and an honest line about your experience. It is a draft; you choose the person and send it.
+What it deliberately does not do: guess or "verify" email addresses, pull people from data-broker sites, claim a company is hiring when no job board exists, or send anything. Keep it low volume (a few a day, one follow-up, stop when asked); cold email is also subject to local anti-spam and privacy rules.
 
 ## How each job gets applied to
 `scan` tags every job with how it takes applications:

@@ -13,7 +13,7 @@ from . import config as C
 from .runner import ACTIONS, RUNNER
 
 STATUSES = ["new", "matched", "ready", "drafted", "applied", "interview", "offer", "rejected", "manual", "skipped", "closed", "failed"]
-LIST_COLS = "id,source,title,company,location,salary,score,status,method,email,url,apply_url,reasons,gaps,notes,created,updated,resume_path,picked,cover_letter IS NOT NULL AS has_cover"
+LIST_COLS = "id,source,title,company,location,salary,score,status,method,email,url,apply_url,reasons,gaps,notes,created,updated,resume_path,CAST(COALESCE(picked,0) AS INTEGER) AS picked,cover_letter IS NOT NULL AS has_cover"
 UI = Path(__file__).parent / "ui"
 TYPES = {".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml"}
 
@@ -94,6 +94,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({})
             return self._json({"mode": cfg.apply.mode, "provider": cfg.llm.provider, "models": cfg.models.model_dump(), "min_score": cfg.search.min_score, "email_via": cfg.email.via,
                                "titles": cfg.search.titles, "resume": cfg.resume.enabled, "max_per_run": cfg.apply.max_per_run, "sources_on": [k for k, v in cfg.sources.model_dump().items() if v is True]})
+        if path == "/api/leads":
+            return self._json(_rows("SELECT * FROM leads ORDER BY relevant DESC, open_jobs DESC, published DESC LIMIT 200"))
         if path == "/api/activity":
             return self._json(activity(q.get("span", ["week"])[0]))
         if path == "/api/answers":

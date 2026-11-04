@@ -26,8 +26,8 @@ const get = url => fetch(url).then(r => r.json());
 const S = { view: 'home', tab: 'overview', jobs: [], stats: { by_status: {}, gaps: [], by_source: [], by_method: [] }, profile: {}, settings: {}, answers: [], act: null, span: 'week',
   mode: 'grid', q: '', fStatus: '', fHow: '', fScore: 0, onlyPicked: false, source: '', shown: 60, run: null, pal: null };
 
-const NAV = [['home', 'Home', 'home'], ['jobs', 'All jobs', 'jobs'], ['queue', 'Ready to apply', 'queue'], ['pipeline', 'Pipeline', 'board'], ['manual', 'Apply by hand', 'hand'], ['insights', 'Insights', 'chart'], ['answers', 'Saved answers', 'chat']];
-const TITLES = { home: 'Home', jobs: 'All jobs', queue: 'Ready to apply', pipeline: 'Pipeline', manual: 'Apply by hand', insights: 'Insights', answers: 'Saved answers', settings: 'Settings', commands: 'Commands', source: 'Source' };
+const NAV = [['home', 'Home', 'home'], ['jobs', 'All jobs', 'jobs'], ['queue', 'Ready to apply', 'queue'], ['pipeline', 'Pipeline', 'board'], ['leads', 'Funded startups', 'bolt'], ['manual', 'Apply by hand', 'hand'], ['insights', 'Insights', 'chart'], ['answers', 'Saved answers', 'chat']];
+const TITLES = { home: 'Home', jobs: 'All jobs', queue: 'Ready to apply', pipeline: 'Pipeline', leads: 'Funded startups', manual: 'Apply by hand', insights: 'Insights', answers: 'Saved answers', settings: 'Settings', commands: 'Commands', source: 'Source' };
 
 /* ---------- data ---------- */
 async function load(which) {
@@ -164,7 +164,19 @@ function vCommands() {
   const C = [['Find, score, draft', 'uv run sidekick run'], ['Apply to web forms (you confirm each Submit)', 'uv run sidekick apply --limit 1'], ['Apply by email (Gmail drafts)', 'uv run sidekick email'], ['Sign in once to a site', 'uv run sidekick login https://…'], ['Preview a Greenhouse form', 'uv run sidekick plan'], ['Work through login-only jobs', 'uv run sidekick manual'], ['Interview prep for a job', 'uv run sidekick prep <job id>'], ['Outreach drafts', 'uv run sidekick outreach'], ['Schedule the daily routine', 'uv run sidekick schedule install --time 09:00']];
   return header('Commands') + `<div class="sec"><h2>Things that run in a terminal</h2><small style="color:var(--dim)">Run from the project folder.</small></div>${C.map(([l, c]) => `<p style="margin:12px 0 4px">${l}</p><div class="cmd"><code>${esc(c)}</code><button data-copy="${esc(c)}">${ic('copy')}</button></div>`).join('')}`;
 }
-const VIEWS = { home: vHome, jobs: vJobs, queue: vQueue, pipeline: vPipeline, manual: vManual, insights: vInsights, answers: vAnswers, settings: vSettings, commands: vCommands, source: vJobs };
+async function vLeads() {
+  const L = await get('/api/leads');
+  const card = l => { let cs = []; try { cs = JSON.parse(l.contacts || '[]'); } catch { }
+    return `<article class="jcard"><header>${avatar(l.company)}<div class="right"><span class="pill ${l.open_jobs ? 'green' : 'gray'}">${l.open_jobs ? l.open_jobs + ' open jobs' : 'no public job board'}</span></div></header>
+    <h3 style="min-height:0">${esc(l.company)}</h3><div class="role" style="white-space:normal">${esc(l.does || '')}</div>
+    <div class="meta"><div><small>Raised</small><b>${esc(((l.round || '') + ' ' + (l.amount || '')).trim() || 'reported')}</b></div><div><small>Reported by</small><b>${esc(l.source)}</b></div></div>
+    <div class="contact"><div>${cs.length ? esc(cs[0].email) : 'No email published on their site'}</div><div><a href="${esc(l.link)}" target="_blank" rel="noopener">Funding story</a>${l.website ? ' · <a href="' + esc(l.website) + '" target="_blank" rel="noopener">Website</a>' : ''}</div></div>
+    <div style="margin-top:10px"><button class="btn small" data-reach="${esc(l.company)}">${l.status === 'drafted' ? 'Draft again' : 'Draft outreach'}</button>${l.status === 'drafted' ? ' <span class="pill blue">drafted</span>' : ''}</div></article>`; };
+  return header('Funded startups') + `<div class="sec"><h2>${L.length} startups that just raised <small style="color:var(--dim);font-weight:400">· they tend to hire soon</small></h2><div class="tools"><button class="btn primary" data-act="fundedrun">${ic('search')} Find funded startups</button></div></div>
+  <p style="color:var(--ink2);max-width:760px;margin:0 0 16px">From public funding news. We only show a contact when the company publishes it on its own site, and outreach is written as a draft for you to check and send yourself.</p>
+  ${L.length ? `<div class="grid">${L.map(card).join('')}</div>` : '<div class="empty"><b>No startups yet</b>Press “Find funded startups” (or run <code>uv run sidekick funded</code>).</div>'}`;
+}
+const VIEWS = { leads: vLeads, home: vHome, jobs: vJobs, queue: vQueue, pipeline: vPipeline, manual: vManual, insights: vInsights, answers: vAnswers, settings: vSettings, commands: vCommands, source: vJobs };
 
 /* ---------- shell ---------- */
 function sidebar() {
@@ -214,7 +226,7 @@ function palItems(q) {
   if (isUrl) A('Do', 'link', 'Add this job from its link', t.slice(0, 70), () => run('add', { url: t }));
   else if (t) A('Do', 'search', `Find jobs for “${t}”`, 'Searches every source, then scores what is new', () => run('find', { query: t }));
   if (t && !isUrl) A('Do', 'jobs', `Search my jobs for “${t}”`, 'Filters the list you already have', () => { go('jobs', { q: t }); });
-  const acts = [['bolt', 'Find jobs now', 'Scan all sources and score new jobs', () => run('find')], ['chart', 'Score new jobs', 'AI rates each one against your CV', () => run('score')], ['file', 'Write cover letters', 'For jobs that matched', () => run('draft')],
+  const acts = [['bolt', 'Find funded startups', 'Startups that just raised money, with hiring signals', () => run('funded')], ['bolt', 'Find jobs now', 'Scan all sources and score new jobs', () => run('find')], ['chart', 'Score new jobs', 'AI rates each one against your CV', () => run('score')], ['file', 'Write cover letters', 'For jobs that matched', () => run('draft')],
     ['mail', 'Prepare picked jobs', 'Tailored resume and email drafts for jobs you picked', () => run('prepare')], ['sync', 'Sync Gmail', 'Update statuses from replies; import LinkedIn alerts', () => run('sync')], ['cal', 'Run the daily routine', 'Find, score, draft, sync, digest', () => run('daily')],
     ['bolt', 'Apply to picked jobs…', 'Shows the terminal command (you confirm each submit)', () => modal('apply')]];
   acts.filter(a => !t || (a[1] + ' ' + a[2]).toLowerCase().includes(t.toLowerCase())).forEach(a => A('Actions', ...a));
@@ -275,6 +287,8 @@ document.addEventListener('click', async e => {
   if (t.closest('[data-copy]')) { navigator.clipboard?.writeText(t.closest('[data-copy]').dataset.copy); t.closest('[data-copy]').innerHTML = ic('check'); return; }
   const act = t.closest('[data-act]')?.dataset.act;
   if (act === 'palette') return openPalette();
+  if (act === 'fundedrun') return run('funded');
+  const rb = t.closest('[data-reach]'); if (rb) { return run('reach', { query: rb.dataset.reach }); }
   if (act === 'findbox') return modal('find');
   if (act === 'linkbox') return modal('link');
   if (act === 'applybox') return modal('apply');

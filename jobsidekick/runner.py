@@ -2,6 +2,7 @@
 Only a fixed list of steps can be started. 'apply' is deliberately not here: it needs you to press Submit in a terminal."""
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import threading
@@ -18,6 +19,8 @@ ACTIONS = {
     "sync": "Sync Gmail",
     "daily": "Daily routine",
     "add": "Add job from link",
+    "funded": "Find funded startups",
+    "reach": "Draft outreach",
 }
 
 
@@ -34,6 +37,12 @@ def steps(action: str, query: str = "", url: str = "") -> list[list[str]]:
         return [["sync"]]
     if action == "daily":
         return [["daily"]]
+    if action == "funded":
+        return [["funded"]]
+    if action == "reach":
+        if not re.fullmatch(r"[A-Za-z0-9 _.&-]{1,60}", query or ""):
+            raise ValueError("pick a startup first")
+        return [["reach", query]]
     if action == "add":
         if not url.startswith(("http://", "https://")):
             raise ValueError("that does not look like a link")

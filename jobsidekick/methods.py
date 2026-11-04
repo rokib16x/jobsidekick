@@ -12,7 +12,7 @@ FORM_HOSTS = ("greenhouse.io", "lever.co", "ashbyhq.com", "workable.com", "smart
               "recruitee.com", "teamtailor.com", "personio.", "breezy.hr", "jobs.gem.com", "rippling.com", "comeet.com",
               "pinpointhq.com", "jobvite.com", "dover.com", "wellfound.com")
 LOGIN_HOSTS = ("myworkdayjobs.com", "linkedin.com", "indeed.com", "icims.com", "taleo.net", "successfactors.", "glassdoor.com",
-               "remote.com", "ziprecruiter.com")
+               "remote.com", "ziprecruiter.com", "workatastartup.com")
 NOT_APPLY_URLS = ("youtube.com", "youtu.be", "twitter.com", "x.com", "github.com", "medium.com", "crunchbase.com")
 
 
